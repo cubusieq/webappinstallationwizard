@@ -2,9 +2,9 @@
 	xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
 	<modelVersion>4.0.0</modelVersion>
 	<groupId>machnikjakub</groupId>
-	<artifactId>webappinstallationwizard</artifactId>
+	<artifactId>webappinstallatorwizard</artifactId>
 	<version>0.0.1-SNAPSHOT</version>
-	<name>WebAppInstalationWizard</name>
+	<name>WebAppInstallatorWizard</name>
 	<build>
 		<plugins>
 			<plugin>
@@ -23,7 +23,7 @@
 							<overwrite>true</overwrite>
 							<resources>
 								<resource>
-									<directory>../webappinstalator/target</directory>
+									<directory>../webappinstallator/target</directory>
 									<includes>
 										<include>WebAppInstallator.jar</include>
 									</includes>
