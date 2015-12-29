@@ -10,7 +10,6 @@ import java.util.Enumeration;
 import java.util.jar.JarEntry;
 import java.util.jar.JarFile;
 import java.util.jar.JarOutputStream;
-import java.util.jar.Manifest;
 
 import org.apache.commons.cli.CommandLine;
 import org.apache.commons.cli.CommandLineParser;
@@ -24,89 +23,96 @@ import org.slf4j.LoggerFactory;
 
 public class WebAppInstallationWizard {
 	static Logger logger = LoggerFactory.getLogger(WebAppInstallationWizard.class);
-	private Option[] options;
 
-	public WebAppInstallationWizard(CommandLine cl) {
-		logger.debug(cl.getOptionValue("dest"));
-		logger.debug(cl.getOptionValue("src"));
-		extractWar(cl.getOptionValue("dest"), cl.getOptionValue("src"));
+	public WebAppInstallationWizard(CommandLine cl, Options declaredOptions) {
+		boolean forceOverwrite = false;
+		if (cl.hasOption("i") || !cl.hasOption("dest") || !cl.hasOption("src")) {
+			this.printInfo(declaredOptions);
+		} else {
+			if (cl.hasOption("f")) {
+				forceOverwrite = true;
+			}
+			makeInstallatorJar(cl.getOptionValue("dest"), cl.getOptionValue("src"), forceOverwrite);
+		}
 	}
 
-	private boolean extractWar(String installerName, String warPath) {
+	private void printInfo(Options options) {
+		logger.info(
+				"Application builds installator jar file with provided war file inside. Provide source war file and installator name using application options :");
+		options.getOptions().forEach((option) -> {
+			StringBuilder optionInfoStringBuilder = new StringBuilder();
+			logger.info(optionInfoStringBuilder.append("Name : ").append(option.getOpt()).append(" ,")
+					.append(option.getDescription()).append(" Is required :  ").append(option.isRequired())
+					.append(". Is flag : ").append(!option.hasArg()).toString());
+		});
+	}
+
+	private boolean makeInstallatorJar(String installerName, String warPath, boolean forceOverwrite) {
 		File installatorJarFile = new File("WebAppInstallator.jar");
-		try {
-			
-			OutputStream outputStream = new FileOutputStream(installatorJarFile);
-			IOUtils.copy(this.getClass().getResourceAsStream("WebAppInstallator.jar"), outputStream);
-
-			// Open JarFile
-			JarFile installatorJar = new JarFile(installatorJarFile);
-			// Make new JarFile
-			File newInstallatorJarFile = new File(installerName + ".jar");
-
-			Enumeration<JarEntry> enumEntries = installatorJar.entries();
-		
-			// create stream for new File
-			JarOutputStream newJarStream = new JarOutputStream(new FileOutputStream(newInstallatorJarFile));
-			try {
-				// WarFile path stream
-				FileInputStream warFile = new FileInputStream(warPath);
-
-				JarEntry warEntry = new JarEntry(warPath);
-				newJarStream.putNextEntry(warEntry);
-				byte[] buffer = new byte[1024];
-				int bytesRead;
-				while ((bytesRead = warFile.read(buffer)) != -1) {
-					newJarStream.write(buffer, 0, bytesRead);
+		try (OutputStream outputStream = new FileOutputStream(installatorJarFile)) {
+			IOUtils.copy(this.getClass().getClassLoader().getResourceAsStream("WebAppInstallator.jar"), outputStream);// fill
+																														// jar
+																														// file
+			try (JarFile installatorJar = new JarFile(installatorJarFile)) {
+				File newInstallatorJarFile = new File(installerName + ".jar");
+				if (newInstallatorJarFile.exists() && !forceOverwrite) {
+					logger.info(
+							"Installator with given name already exists. Rerun installer with -f flag set to true to continue and overwrite this file");
+					return false;
 				}
-				warFile.close();
-				while (enumEntries.hasMoreElements()) {
-					JarEntry file = (JarEntry) enumEntries.nextElement();
-					if (!file.getName().equals(warPath)) {
-						// Get an input stream for the entry.
-						InputStream entryStream = installatorJar.getInputStream(file);
-						// Read the entry and write it to the temp jar.
-						newJarStream.putNextEntry(file);
-						while ((bytesRead = entryStream.read(buffer)) != -1) {
-							newJarStream.write(buffer, 0, bytesRead);
+				Enumeration<JarEntry> enumEntries = installatorJar.entries();
+
+				try (FileOutputStream newJarFileStream = new FileOutputStream(newInstallatorJarFile);
+						JarOutputStream newJarStream = new JarOutputStream(newJarFileStream);
+						FileInputStream warFile = new FileInputStream(warPath)) {
+					// WarFile path stream
+
+					JarEntry warEntry = new JarEntry("target.war");
+					newJarStream.putNextEntry(warEntry);
+					byte[] buffer = new byte[1024];
+					int bytesRead;
+					while ((bytesRead = warFile.read(buffer)) != -1) {
+						newJarStream.write(buffer, 0, bytesRead);
+					}
+
+					while (enumEntries.hasMoreElements()) {
+						JarEntry file = (JarEntry) enumEntries.nextElement();
+						if (!file.getName().equals(warPath)) {
+							// Get an input stream for the entry.
+							try (InputStream entryStream = installatorJar.getInputStream(file)) {
+								newJarStream.putNextEntry(file);
+								while ((bytesRead = entryStream.read(buffer)) != -1) {
+									newJarStream.write(buffer, 0, bytesRead);
+								}
+							}
 						}
 					}
 				}
-
-			} catch (IOException ex) {
-				logger.error(ex.getMessage(), ex);
-				newJarStream.putNextEntry(new JarEntry("empty"));
-
-			} finally {
-				newJarStream.close();
-				installatorJar.close();
-				outputStream.close();
-				installatorJar.close();
-
 			}
-		
-			return true;
 		} catch (IOException ex) {
 			logger.error(ex.getMessage(), ex);
 			return false;
-		}finally
-		{
+		} finally {
 			installatorJarFile.delete();
 		}
-
+		return true;
 	}
 
 	public static void main(String[] args) {
 		try {
 			final CommandLineParser parser = new DefaultParser();
 			Options options = new Options();
-			Option src = Option.builder("src").hasArg().argName("src").required().desc("Path to WAR file.").build();
-			Option dest = Option.builder("dest").hasArg().argName("dest").required()
-					.desc("Created installator file path.").build();
+			Option src = Option.builder("src").hasArg().argName("src").desc("Path to input WAR file.").build();
+			Option dest = Option.builder("dest").hasArg().argName("dest").desc("Output installator file path.").build();
+			Option info = Option.builder("i").hasArg(false).desc("Prints info without executing wizard.").build();
+			Option f = Option.builder("f").hasArg(false)
+					.desc("Force creating installer jar when file with given name exists.").build();
 			options.addOption(src);
 			options.addOption(dest);
+			options.addOption(info);
+			options.addOption(f);
 			CommandLine parsedCl = parser.parse(options, args);
-			new WebAppInstallationWizard(parsedCl);
+			new WebAppInstallationWizard(parsedCl, options);
 		} catch (ParseException e) {
 			logger.error(e.getMessage(), e);
 			logger.error("Check -src and -dest arugments, and try again.");

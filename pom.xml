@@ -3,7 +3,14 @@
 	<modelVersion>4.0.0</modelVersion>
 	<groupId>machnikjakub</groupId>
 	<artifactId>webappinstallatorwizard</artifactId>
-	<version>0.0.1-SNAPSHOT</version>
+	<version>1.0</version>
+	<parent>
+		<groupId>machnikjakub</groupId>
+		<artifactId>webappinstallerparent</artifactId>
+		<version>1.0</version>
+
+		<relativePath>../webappinstallerparent</relativePath>
+	</parent>
 	<name>WebAppInstallatorWizard</name>
 	<build>
 		<plugins>
@@ -53,7 +60,7 @@
 					<appendAssemblyId>false</appendAssemblyId>
 					<archive>
 						<manifest>
-							<mainClass>WebAppInstallationWizard</mainClass>
+							<mainClass>webappinstallatorwizard.WebAppInstallationWizard</mainClass>
 						</manifest>
 					</archive>
 				</configuration>
@@ -104,4 +111,5 @@
 		</dependency>
 
 	</dependencies>
+
 </project>
